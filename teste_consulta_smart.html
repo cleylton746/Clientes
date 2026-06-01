@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Integrado – Smart Vendas & Gestão</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; flex-direction: column; }
+        
+        /* Layout Fullscreen Dividido em Duas Colunas */
+        .wrapper { display: flex; flex: 1; min-height: 100vh; width: 100%; }
+        
+        /* Coluna Esquerda: Dashboards e Indicadores */
+        .sidebar-dash { width: 40%; background: #1a1a2e; color: white; padding: 24px; display: flex; flex-direction: column; gap: 20px; border-right: 4px solid #4f46e5; max-height: 100vh; overflow-y: auto; }
+        
+        /* Coluna Direita: Consultas e Operações */
+        .main-content { width: 60%; background: #f8fafc; padding: 30px; max-height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+
+        /* Títulos e Tipografia */
+        .side-title { font-size: 18px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 5px; color: #e2e8f0; }
+        .section-header { font-size: 13px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Grid de Indicadores de Memória */
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .stat-card { background: rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 14px 10px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-num { font-size: 20px; font-weight: 700; color: #ffffff; }
+        .stat-label { font-size: 11px; color: #94a3b8; margin-top: 2px; text-transform: uppercase; }
+
+        /* DASHBOARDS STATUS BOXES */
+        .status-box { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px; }
+        .status-box.smart-theme { background: rgba(79, 70, 229, 0.15); border-color: #4f46e5; }
+        .status-box.contas-theme { background: rgba(16, 185, 129, 0.1); border-color: #10b981; }
+        
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+        .sub-stat { padding: 8px; border-radius: 8px; text-align: center; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        
+        /* Cores Temáticas Smart */
+        .sub-stat.base-bg { background: #1e3a8a; color: #3b82f6; border: 1px solid #2563eb; }
+        .sub-stat.fresh-bg { background: #064e3b; color: #10b981; border: 1px solid #059669; }
+        
+        /* Cores Temáticas Contas */
+        .sub-stat.perfis-bg { background: #312e81; color: #818cf8; border: 1px solid #4f46e5; }
+        .sub-stat.mes-bg { background: #14532d; color: #34d399; border: 1px solid #059669; }
+        
+        .sub-stat span { display: block; font-size: 18px; font-weight: bold; color: white; margin-top: 2px; }
+        
+        /* Barras de Proporção Visual */
+        .ratio-wrapper { background: rgba(255,255,255,0.15); height: 8px; border-radius: 4px; margin-top: 10px; overflow: hidden; display: flex; }
+        .ratio-bar-base { background: #3b82f6; width: 0%; transition: width 0.4s; }
+        .ratio-bar-fresh { background: #10b981; width: 0%; transition: width 0.4s; }
+        .ratio-bar-perfis { background: #6366f1; width: 0%; transition: width 0.4s; }
+        .ratio-bar-mes { background: #10b981; width: 0%; transition: width 0.4s; }
+
+        /* Filas de Pendências no Painel Lateral */
+        .pending-container { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+        .dashboard-pending { border-radius: 12px; padding: 14px; display: flex; flex-direction: column; max-height: 180px; }
+        .dashboard-pending.smart-p { background: rgba(59, 130, 246, 0.1); border: 1px solid #2563eb; }
+        .dashboard-pending.contas-p { background: rgba(245, 158, 11, 0.1); border: 1px solid #d97706; }
+        .dash-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; }
+        .smart-p .dash-title { color: #60a5fa; }
+        .contas-p .dash-title { color: #fbbf24; }
+        
+        .queue-box { background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 6px; overflow-y: auto; flex: 1; }
+        .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #cbd5e1; }
+        .queue-item:last-child { border-bottom: none; }
+        .btn-copy-item { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; color: white; }
+        .btn-copy-item:hover { background: rgba(255,255,255,0.2); }
+
+        /* Componentes de Busca */
+        .search-container { background: white; padding: 20px; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .input-group { display: flex; gap: 10px; margin-top: 8px; }
+        .filter-select { padding: 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 14px; font-weight: 600; color: #334155; background: white; outline: none; cursor: pointer; min-width: 160px; }
+        input[type=text] { flex: 1; padding: 12px 16px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 15px; outline: none; }
+        input[type=text]:focus, .filter-select:focus { border-color: #4f46e5; }
+        .btn-primary { background: #4f46e5; color: white; border: none; border-radius: 10px; padding: 12px 24px; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .btn-primary:hover { background: #4338ca; }
+
+        /* Caixa de Resultado Detalhado */
+        .result-box { display: none; background: white; padding: 20px; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .cnpj-display { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 14px; border-bottom: 2px solid #f1f5f9; padding-bottom: 6px; }
+        .res-section { border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1.5px solid #e2e8f0; background: #f8fafc; }
+        .res-section.smart-border { border-color: #c7d2fe; background: #f5f7ff; }
+        .res-section.conta-border { border-color: #a7f3d0; background: #f0fdf4; }
+        
+        /* Badges de Status */
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-bottom: 10px; }
+        .badge.base { background: #dbeafe; color: #1e40af; }
+        .badge.fresh { background: #d1fae5; color: #065f46; }
+        .badge.sucesso { background: #d1fae5; color: #065f46; }
+        .badge.alerta { background: #fef3c7; color: #92400e; }
+        .badge.notfound { background: #fee2e2; color: #991b1b; }
+        
+        .info-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px dashed rgba(0,0,0,0.05); }
+        .info-value { font-weight: 600; color: #1e293b; }
+        .info-value.highlight { color: #10b981; font-weight: 700; background: #e6fcf5; padding: 2px 6px; border-radius: 4px; border: 1px solid #a7f3d0; }
+        .info-value.alert-style { color: #d97706; font-weight: 700; background: #fffbeb; padding: 2px 6px; border-radius: 4px; border: 1px solid #fde68a; }
+
+        /* Subgrupo de Perfis Internos */
+        .subgrupo-perfis { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-top: 8px; margin-bottom: 10px; }
+        .subgrupo-titulo { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+
+        /* Histórico */
+        .history-box { background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .btn-clear-history { background: none; border: none; color: #ef4444; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: underline; }
+        .history-list { max-height: 200px; overflow-y: auto; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; font-size: 14px; border-bottom: 1px solid #edf2f7; }
+        .hist-meta { font-size: 11px; color: #94a3b8; font-family: monospace; margin-right: 6px; }
+        
+        /* Tags no Histórico */
+        .hist-identificadores { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+        .hist-badge { padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+        .hist-badge.found { background: #d1fae5; color: #065f46; }
+        .hist-badge.miss { background: #fee2e2; color: #991b1b; }
+        .hist-badge.ident-smart { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+        .hist-badge.ident-contas { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+
+        /* Upload de Arquivos Planilhas */
+        .upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .upload-section { background: white; border: 1.5px dashed #cbd5e1; border-radius: 14px; padding: 16px; text-align: center; position: relative; }
+        .upload-section.contas { border-color: #a7f3d0; background: #fafdfb; }
+        .upload-title { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+        .upload-desc { font-size: 11px; color: #64748b; margin-bottom: 10px; }
+        .btn-action-import { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; pointer-events: none; }
+        .file-input-hidden { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .status-text { font-size: 11px; font-weight: 500; margin-top: 6px; color: #64748b; }
+        .progress-wrap { margin-top: 6px; background: #e2e8f0; border-radius: 99px; height: 4px; display: none; overflow: hidden; display: flex; }
+        .progress-bar { height: 100%; background: #4f46e5; width: 0%; }
+
+        /* Rodapé */
+        .export-footer { background: white; border-top: 1px solid #e2e8f0; padding: 16px; display: flex; justify-content: space-between; align-items: center; border-radius: 14px; }
+        .export-group { display: flex; gap: 8px; }
+        .btn-export { background: white; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; }
+        .btn-export:hover { background: #f8fafc; border-color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    
+    <div class="sidebar-dash">
+        <div>
+            <h1 style="font-size: 20px; font-weight: 700;">📊 Smart Dashboard</h1>
+            <p style="font-size: 11px; opacity: 0.6; margin-top: 2px;">Métricas consolidadas (Supabase Integrado)</p>
+        </div>
+
+        <div>
+            <div class="side-title">Registros no Banco de Dados</div>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-num" id="stSmartTotal">Carregando...</div><div class="stat-label">Total Smart</div></div>
+                <div class="stat-card"><div class="stat-num" id="stContaTotal">Carregando...</div><div class="stat-label">Total Linhas Contas</div></div>
+            </div>
+        </div>
+
+        <div class="status-box smart-theme">
+            <div class="side-title" style="font-size:13px; border:none; margin:0;">Status da Base Smart</div>
+            <div class="status-grid">
+                <div class="sub-stat base-bg">BASE<span id="lblSmartBase">0</span></div>
+                <div class="sub-stat fresh-bg">FRESH<span id="lblSmartFresh">0</span></div>
+            </div>
+            <div class="ratio-wrapper">
+                <div class="ratio-bar-base" id="barRatioBase"></div>
+                <div class="ratio-bar-fresh" id="barRatioFresh"></div>
+            </div>
+        </div>
+
+        <div class="status-box contas-theme">
+            <div class="side-title" style="font-size:13px; border:none; margin:0; color:#34d399;">Status da Base de Contas</div>
+            <div class="status-grid">
+                <div class="sub-stat perfis-bg">COM PERFIL<span id="lblContasPerfis">0</span></div>
+                <div class="sub-stat mes-bg">PERFIS ATIVOS<span id="lblContasAtivos">0</span></div>
+            </div>
+            <div class="ratio-wrapper">
+                <div class="ratio-bar-perfis" id="barRatioPerfis"></div>
+                <div class="ratio-bar-mes" id="barRatioMes"></div>
+            </div>
+        </div>
+
+        <div class="pending-container">
+            <div class="dashboard-pending smart-p">
+                <div class="dash-title" id="titleSmartP">⚠️ Faltam Smart (0)</div>
+                <div class="queue-box" id="queueSmart">
+                    <div style="text-align:center; color:#94a3b8; font-size:11px; padding:10px;">Buscando pendências...</div>
+                </div>
+            </div>
+            
+            <div class="dashboard-pending contas-p">
+                <div class="dash-title" id="titleContasP">⚠️ Faltam Contas (0)</div>
+                <div class="queue-box" id="queueContas">
+                    <div style="text-align:center; color:#94a3b8; font-size:11px; padding:10px;">Buscando pendências...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="font-size: 11px; color: #64748b; text-align: center; margin-top: auto;">Smart Gestão v4.0</div>
+    </div>
+
+    <div class="main-content">
+        
+        <div class="search-container">
+            <label class="section-header" for="mainCnpjInput">Painel de Consulta Integrada (Supabase)</label>
+            <div class="input-group">
+                <select class="filter-select" id="searchFilterScope" onchange="executarFiltroInterface()">
+                    <option value="all"> Consultar Tudo</option>
+                    <option value="smart"> Smart CNPJ</option>
+                    <option value="contas"> Perfil Conta</option>
+                </select>
+                <input type="text" id="mainCnpjInput" placeholder="Digite o CNPJ do Cliente para pesquisar..." maxlength="18"
+                    oninput="formatCNPJ(this)" onkeydown="if(event.key==='Enter') executarConsultaGeral()" autofocus />
+                <button class="btn-primary" onclick="executarConsultaGeral()">Buscar Cliente</button>
+            </div>
+        </div>
+
+        <div class="result-box" id="unifiedResultContainer">
+            <div class="cnpj-display" id="resCnpjTitle">00.000.000/0000-00</div>
+            <div class="res-section smart-border" id="boxResultSmart"></div>
+            <div class="res-section conta-border" id="boxResultContas"></div>
+        </div>
+
+        <div class="history-box">
+            <div class="history-header">
+                <span class="section-header">⏱️ Histórico Recente de Consulta </span>
+                <button class="btn-clear-history" onclick="limparHistoricoExterno()">Limpar Tudo</button>
+            </div>
+            <div class="history-list" id="historyListContainer">
+                <div style="text-align:center; color:#94a3b8; font-size:12px; padding:15px;">Nenhuma consulta registrada.</div>
+            </div>
+        </div>
+
+        <div class="upload-row">
+            <div class="upload-section">
+                <div class="upload-title">📥 1. Planilha Smart CNPJ</div>
+                <div class="upload-desc">Exige colunas "CNPJ", "DATA" e "STATUS".</div>
+                <button class="btn-action-import">Selecionar Arquivo</button>
+                <input type="file" class="file-input-hidden" accept=".xlsx,.xls,.csv" onchange="processarUploadArquivo(this, 'smart')" />
+                <div class="progress-wrap" id="pWrapSmart"><div class="progress-bar" id="pBarSmart"></div></div>
+                <div class="status-text" id="statusSmart">Aguardando arquivo para sincronismo...</div>
+            </div>
+
+            <div class="upload-section contas">
+                <div class="upload-title" style="color: #065f46;">📥 2. Planilha Perfil Contas</div>
+                <div class="upload-desc">Identifica documento e perfil de cobrança automaticamente.</div>
+                <button class="btn-action-import" style="color: #065f46; border-color: #a7f3d0;">Selecionar Arquivo</button>
+                <input type="file" class="file-input-hidden" accept=".xlsx,.xls,.csv" onchange="processarUploadArquivo(this, 'contas')" />
+                <div class="progress-wrap" id="pWrapContas"><div class="progress-bar" id="pBarContas"></div></div>
+                <div class="status-text" id="statusContas" style="color: #065f46;">Aguardando arquivo para sincronismo...</div>
+            </div>
+        </div>
+
+        <div class="export-footer">
+            <span style="font-size: 12px; color: #64748b;">Extração consolidada de dados:</span>
+            <div class="export-group">
+                <button class="btn-export" onclick="exportarBaseDados('smart')">📊 Exportar Smart</button>
+                <button class="btn-export" onclick="exportarBaseDados('contas')">📋 Exportar Contas</button>
+                <button class="btn-export" style="background:#f1f5f9;" onclick="exportarHistoricoExcel()">⏱️ Exportar Histórico</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// ========================================================
+// CONFIGURAÇÃO E CONEXÃO COM O SEU BANCO SUPABASE
+// --------------------------------------------------------
+// ⚠️ ATENÇÃO: Substitua os valores abaixo pelas suas
+// credenciais reais encontradas em:
+// Supabase → Settings → API
+//
+// SUPABASE_URL  → campo "Project URL"
+//                 Formato: https://xxxxxxxxxxxx.supabase.co
+//
+// SUPABASE_KEY  → campo "anon public"
+//                 Formato: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+// ========================================================
+window.SUPABASE_URL = "https://uuxfdlzsqudbjtlpllaz.supabase.co";
+window.SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1eGZkbHpzcXVkYmp0bHBsbGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NjQ1NDIsImV4cCI6MjA5NTU0MDU0Mn0.3L90UiFUj3VQYo57ZsQ1E5zG5xZsXVKecyi6PfLpZ_E";
+
+let supabaseClient = null;
+
+// Valida formato mínimo das credenciais antes de inicializar
+const urlValida = window.SUPABASE_URL.startsWith("https://") && window.SUPABASE_URL.includes(".supabase.co");
+const keyValida = window.SUPABASE_KEY.startsWith("eyJ");
+
+if (!urlValida || !keyValida) {
+    console.error("❌ Credenciais do Supabase inválidas ou não configuradas. Verifique SUPABASE_URL e SUPABASE_KEY no topo do script.");
+    alert("⚠️ Configuração necessária:\n\nAs credenciais do Supabase não foram preenchidas corretamente.\n\nAbra o arquivo HTML, localize as variáveis SUPABASE_URL e SUPABASE_KEY e substitua pelos valores reais do seu projeto.\n\nAcesse: Supabase → Settings → API");
+} else {
+    try {
+        supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+    } catch(e) {
+        console.error("Erro ao inicializar cliente Supabase:", e);
+        alert("Erro: O cliente Supabase não foi carregado corretamente.\n" + e.message);
+    }
+}
+
+let DB_SMART = {};
+let DB_CONTAS = {};
+
+document.addEventListener("DOMContentLoaded", function() {
+    carregarDadosDoBancoSupabase();
+    carregarHistoricoExterno();
+    GarantirFocoInput();
+});
+
+async function buscarTodosRegistros(tabela) {
+    const LOTE = 1000;
+    let todos = [];
+    let from = 0;
+    while (true) {
+        const { data, error } = await supabaseClient
+            .from(tabela)
+            .select('*')
+            .range(from, from + LOTE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        todos = todos.concat(data);
+        if (data.length < LOTE) break;
+        from += LOTE;
+    }
+    return todos;
+}
+
+async function carregarDadosDoBancoSupabase() {
+    if (!supabaseClient) return;
+    try {
+        document.getElementById('stSmartTotal').textContent = 'Carregando...';
+        document.getElementById('stContaTotal').textContent = 'Carregando...';
+
+        const smartData = await buscarTodosRegistros('base_smart');
+        DB_SMART = {};
+        smartData.forEach(row => {
+            if(row.cnpj) {
+                let cLimpo = normalizarChaveCnpj(row.cnpj);
+                DB_SMART[cLimpo] = {
+                    data_ativacao: row.data_ativacao || 'Não Informada',
+                    status: row.status ? String(row.status).toLowerCase() : 'vazio'
+                };
+            }
+        });
+
+        const contasData = await buscarTodosRegistros('base_contas');
+        DB_CONTAS = {};
+        contasData.forEach(row => {
+            if(row.documentacaocliente) {
+                let cLimpo = normalizarChaveCnpj(row.documentacaocliente);
+                if (!DB_CONTAS[cLimpo]) DB_CONTAS[cLimpo] = [];
+                DB_CONTAS[cLimpo].push(row.perfil_cobranca || 'vazio');
+            }
+        });
+
+        atualizarInterfaceGeral();
+
+    } catch (error) {
+        console.error("Erro ao carregar dados do Supabase:", error);
+        document.getElementById('stSmartTotal').textContent = 'Erro';
+        document.getElementById('stContaTotal').textContent = 'Erro';
+    }
+}
+
+function GarantirFocoInput() {
+    const input = document.getElementById('mainCnpjInput');
+    if (input) input.focus();
+}
+
+function normalizarChaveCnpj(val) {
+    if (!val) return "";
+    let limpo = String(val).replace(/\D/g, '').trim();
+    return limpo.replace(/^0+/, ''); 
+}
+
+function executarFiltroInterface() {
+    GarantirFocoInput();
+    if (document.getElementById('mainCnpjInput').value.trim() !== "") {
+        executarConsultaGeral();
+    }
+}
+
+function atualizarInterfaceGeral() {
+    document.getElementById('stSmartTotal').textContent = Object.keys(DB_SMART).length.toLocaleString('pt-BR');
+    let totalLinhasContas = 0;
+    Object.keys(DB_CONTAS).forEach(k => totalLinhasContas += DB_CONTAS[k].length);
+    document.getElementById('stContaTotal').textContent = totalLinhasContas.toLocaleString('pt-BR');
+
+    let totalBase = 0;
+    let totalFresh = 0;
+    Object.keys(DB_SMART).forEach(k => {
+        let st = String(DB_SMART[k].status).toLowerCase();
+        if (st.includes('base')) totalBase++;
+        else if (st.includes('fresh')) totalFresh++;
+    });
+    document.getElementById('lblSmartBase').textContent = totalBase.toLocaleString('pt-BR');
+    document.getElementById('lblSmartFresh').textContent = totalFresh.toLocaleString('pt-BR');
+    
+    let totalStatusSmart = totalBase + totalFresh;
+    if (totalStatusSmart > 0) {
+        document.getElementById('barRatioBase').style.width = ((totalBase / totalStatusSmart) * 100) + '%';
+        document.getElementById('barRatioFresh').style.width = ((totalFresh / totalStatusSmart) * 100) + '%';
+    }
+
+    let totalComPerfil = 0; 
+    let totalPerfisAtivosGeral = 0; 
+
+    Object.keys(DB_CONTAS).forEach(cnpjKey => {
+        let possuiAoMenosUmPerfil = false;
+        DB_CONTAS[cnpjKey].forEach(perfil => {
+            let pLimpo = String(perfil).toLowerCase().trim();
+            let temPerfilValido = pLimpo !== "" && pLimpo !== "vazio" && pLimpo !== "false" && pLimpo !== "agendado";
+            if (temPerfilValido) {
+                totalPerfisAtivosGeral++; 
+                possuiAoMenosUmPerfil = true;
+            }
+        });
+        if (possuiAoMenosUmPerfil) totalComPerfil++;
+    });
+
+    document.getElementById('lblContasPerfis').textContent = totalComPerfil.toLocaleString('pt-BR');
+    document.getElementById('lblContasAtivos').textContent = totalPerfisAtivosGeral.toLocaleString('pt-BR');
+
+    if (totalPerfisAtivosGeral > 0) {
+        document.getElementById('barRatioPerfis').style.width = '100%';
+        let pct = totalLinhasContas > 0 ? (totalPerfisAtivosGeral / totalLinhasContas) * 100 : 0;
+        document.getElementById('barRatioMes').style.width = pct + '%';
+    }
+
+    const qSmart = document.getElementById('queueSmart');
+    qSmart.innerHTML = '';
+    let smartVazios = Object.keys(DB_SMART).filter(k => DB_SMART[k].status === 'vazio');
+    document.getElementById('titleSmartP').textContent = `⚠️ Faltam Smart (${smartVazios.length})`;
+    if(smartVazios.length === 0) {
+        qSmart.innerHTML = '<div style="text-align:center; color:#10b981; font-size:11px; padding:10px;">🎉 Tudo Preenchido!</div>';
+    } else {
+        smartVazios.slice(0, 30).forEach(cnpj => inserirLinhaFila(cnpj, qSmart));
+    }
+
+    const qContas = document.getElementById('queueContas');
+    qContas.innerHTML = '';
+    let contasAgendados = [];
+    Object.keys(DB_CONTAS).forEach(cnpj => {
+        let temPendente = DB_CONTAS[cnpj].some(p => {
+            let pLimpo = String(p).toLowerCase().trim();
+            return pLimpo === 'agendado' || !pLimpo || pLimpo === 'vazio' || pLimpo === 'false';
+        });
+        if(temPendente) contasAgendados.push(cnpj);
+    });
+    document.getElementById('titleContasP').textContent = `⚠️ Faltam Contas (${contasAgendados.length})`;
+    if(contasAgendados.length === 0) {
+        qContas.innerHTML = '<div style="text-align:center; color:#10b981; font-size:11px; padding:10px;">🎉 Tudo Ativo!</div>';
+    } else {
+        contasAgendados.slice(0, 30).forEach(cnpj => inserirLinhaFila(cnpj, qContas));
+    }
+}
+
+function executarConsultaGeral() {
+    const escopo = document.getElementById('searchFilterScope').value;
+    const cnpjBruto = document.getElementById('mainCnpjInput').value;
+    const cnpjChave = normalizarChaveCnpj(cnpjBruto);
+    
+    const container = document.getElementById('unifiedResultContainer');
+    const titleEl = document.getElementById('resCnpjTitle');
+    const smartBox = document.getElementById('boxResultSmart');
+    const contasBox = document.getElementById('boxResultContas');
+
+    if (!cnpjChave) return;
+
+    titleEl.textContent = formatarCnpjTexto(cnpjChave);
+    let renderizouAlgo = false;
+    let statusEncontro = "Não Localizado";
+
+    if (escopo === 'all' || escopo === 'smart') {
+        if (DB_SMART.hasOwnProperty(cnpjChave)) {
+            let r = DB_SMART[cnpjChave];
+            let isVazio = r.status === 'vazio';
+            let isBase = r.status.includes('base');
+            let badgeClass = isVazio ? 'notfound' : (isBase ? 'base' : 'fresh');
+            let textoExibido = isVazio ? 'VAZIO / PENDENTE' : String(r.status).toUpperCase();
+
+            smartBox.innerHTML = `
+                <div class="section-header" style="margin-bottom:6px;">Módulo Smart CNPJ</div>
+                <span class="badge ${badgeClass}">${textoExibido}</span>
+                <div class="info-row">
+                    <span>Data do Serviço Mais Antigo:</span>
+                    <span class="info-value">${r.data_ativacao || 'Não Informada'}</span>
+                </div>
+            `;
+            smartBox.style.display = 'block';
+            renderizouAlgo = true;
+            statusEncontro = "Localizado";
+        } else {
+            if (escopo === 'smart') {
+                smartBox.innerHTML = `<div class="section-header">Módulo Smart CNPJ</div><span class="badge notfound">NÃO LOCALIZADO</span>`;
+                smartBox.style.display = 'block';
+                renderizouAlgo = true;
+            } else {
+                smartBox.style.display = 'none';
+            }
+        }
+    }
+
+    if (escopo === 'all' || escopo === 'contas') {
+        if (DB_CONTAS.hasOwnProperty(cnpjChave)) {
+            let listaPerfis = DB_CONTAS[cnpjChave];
+            let perfisAtivos = [];
+            let perfisAgendados = [];
+
+            listaPerfis.forEach(perfil => {
+                let pLimpo = String(perfil).trim();
+                let isAgendado = pLimpo.toLowerCase() === 'agendado' || pLimpo === "" || pLimpo.toLowerCase() === 'vazio' || pLimpo === 'false';
+                if (isAgendado) perfisAgendados.push(pLimpo);
+                else perfisAtivos.push(pLimpo);
+            });
+
+            let blocoHtml = `<div style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">`;
+            if (perfisAtivos.length > 0) {
+                blocoHtml += `<div class="subgrupo-perfis" style="border-color: #a7f3d0;"><div class="subgrupo-titulo" style="color: #059669;">🟢 Perfis de Cobrança Ativos (${perfisAtivos.length})</div>`;
+                perfisAtivos.forEach((perf) => {
+                    blocoHtml += `<div class="info-row"><span>Linha / Perfil ativo:</span><span class="info-value highlight">${perf}</span></div>`;
+                });
+                blocoHtml += `</div>`;
+            }
+            if (perfisAgendados.length > 0) {
+                blocoHtml += `<div class="subgrupo-perfis" style="border-color: #fde68a;"><div class="subgrupo-titulo" style="color: #d97706;">🟡 Linhas sem Perfil Cadastrado (${perfisAgendados.length})</div>`;
+                perfisAgendados.forEach(() => {
+                    blocoHtml += `<div class="info-row"><span>Status da Linha:</span><span class="info-value alert-style">⚠️ AGENDADO (Aguardando Ativação)</span></div>`;
+                });
+                blocoHtml += `</div>`;
+            }
+            blocoHtml += `</div>`;
+
+            let badgeGeral = perfisAtivos.length > 0 ? `<span class="badge sucesso">COM PERFIL ATIVO</span>` : `<span class="badge alerta">APENAS AGENDADOS</span>`;
+            contasBox.innerHTML = `<div class="section-header">Módulo Contas (Faturamento)</div>${badgeGeral}${blocoHtml}`;
+            contasBox.style.display = 'block';
+            renderizouAlgo = true;
+            statusEncontro = "Localizado";
+        } else {
+            if (escopo === 'contas') {
+                contasBox.innerHTML = `<div class="section-header">Módulo de Contas</div><span class="badge notfound">NÃO LOCALIZADO</span>`;
+                contasBox.style.display = 'block';
+                renderizouAlgo = true;
+            } else {
+                contasBox.style.display = 'none';
+            }
+        }
+    }
+
+    if (escopo === 'all' && !DB_SMART.hasOwnProperty(cnpjChave) && !DB_CONTAS.hasOwnProperty(cnpjChave)) {
+        smartBox.innerHTML = `<div class="section-header">Busca Consolidada</div><span class="badge notfound">NÃO LOCALIZADO NAS BASES</span>`;
+        smartBox.style.display = 'block';
+        contasBox.style.display = 'none';
+        renderizouAlgo = true;
+    }
+
+    container.style.display = renderizouAlgo ? 'block' : 'none';
+    salvarNoHistoricoExterno(cnpjChave, escopo, statusEncontro);
+    GarantirFocoInput();
+}
+
+function salvarNoHistoricoExterno(cnpj, tipoFiltro, resultado) {
+    let mapaFiltros = { "all": "Geral", "smart": "Smart", "contas": "Contas" };
+    let itemObj = { cnpj: cnpj, filtro: mapaFiltros[tipoFiltro], status: resultado, timestamp: new Date().toLocaleString('pt-BR') };
+    let localHist = JSON.parse(localStorage.getItem("smart_external_mock")) || [];
+    
+    if(localHist.length > 0 && localHist[0].cnpj === cnpj && localHist[0].filtro === mapaFiltros[tipoFiltro]) {
+        localHist[0].timestamp = itemObj.timestamp;
+        localHist[0].status = resultado;
+    } else {
+        localHist.unshift(itemObj);
+    }
+    localStorage.setItem("smart_external_mock", JSON.stringify(localHist.slice(0, 50)));
+    renderizarListaHist(localHist.slice(0, 50));
+}
+
+function carregarHistoricoExterno() {
+    let localHist = JSON.parse(localStorage.getItem("smart_external_mock")) || [];
+    renderizarListaHist(localHist);
+}
+
+function renderizarListaHist(lista) {
+    const container = document.getElementById("historyListContainer");
+    if (!lista || lista.length === 0) return;
+    container.innerHTML = "";
+    lista.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "history-item";
+        
+        let temSmart = DB_SMART.hasOwnProperty(item.cnpj);
+        let temContas = DB_CONTAS.hasOwnProperty(item.cnpj);
+        let statusReal = (temSmart || temContas) ? "Localizado" : "Não Localizado";
+        let cBadge = statusReal === "Localizado" ? "found" : "miss";
+
+        let htmlIdentificadores = "";
+        if (temSmart) htmlIdentificadores += `<span class="hist-badge ident-smart">Smart</span>`;
+        if (temContas) htmlIdentificadores += `<span class="hist-badge ident-contas">Contas</span>`;
+
+        div.innerHTML = `
+            <div>
+                <span class="hist-meta">[${item.timestamp.split(' ')[1] || ''}]</span>
+                <strong>${formatarCnpjTexto(item.cnpj)}</strong>
+                <div class="hist-identificadores">${htmlIdentificadores}<span class="hist-badge ${cBadge}">${statusReal.toUpperCase()}</span></div>
+            </div>
+            <button class="btn-copy-item" onclick="clicarItemHistorico('${item.cnpj}', '${item.filtro}')">🔍 Ver</button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function clicarItemHistorico(cnpj, filtro) {
+    document.getElementById('searchFilterScope').value = filtro === "Smart" ? "smart" : (filtro === "Contas" ? "contas" : "all");
+    let inp = document.getElementById('mainCnpjInput');
+    inp.value = cnpj;
+    formatCNPJ(inp);
+    executarConsultaGeral();
+}
+
+function limparHistoricoExterno() {
+    if(confirm("Deseja limpar os registros de histórico?")) {
+        localStorage.removeItem("smart_external_mock");
+        renderizarListaHist([]);
+    }
+    GarantirFocoInput();
+}
+
+function exportarHistoricoExcel() {
+    let lista = JSON.parse(localStorage.getItem("smart_external_mock")) || [];
+    if(lista.length === 0) return alert("Histórico vazio.");
+    let m = [["DATA/HORA", "CNPJ", "FILTRO", "STATUS"]];
+    lista.forEach(i => m.push([i.timestamp, i.cnpj, i.filtro, i.status]));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(m), "Historico");
+    XLSX.writeFile(wb, "Historico_Banco_Externo.xlsx");
+    GarantirFocoInput();
+}
+
+function inserirLinhaFila(cnpj, box) {
+    const item = document.createElement('div');
+    item.className = 'queue-item';
+    item.innerHTML = `<span>${formatarCnpjTexto(cnpj)}</span><button class="btn-copy-item" onclick="clicarItemFila('${cnpj}')">Ver</button>`;
+    box.appendChild(item);
+}
+
+function clicarItemFila(cnpj) {
+    const input = document.getElementById('mainCnpjInput');
+    input.value = cnpj;
+    formatCNPJ(input);
+    executarConsultaGeral();
+}
+
+function normalizarTexto(txt) { return String(txt).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
+
+// ========================================================
+// MÓDULO DE LEITURA COMPLETAMENTE ULTRA-TOLERANTE
+// ========================================================
+function processarUploadArquivo(input, alvoMemoria) {
+    if (!supabaseClient) {
+        alert("Erro: O cliente Supabase não foi carregado corretamente.");
+        return;
+    }
+    const file = input.files[0];
+    if(!file) return;
+    const prefixo = alvoMemoria === 'smart' ? 'Smart' : 'Contas';
+    const statusEl = document.getElementById(`status${prefixo}`);
+    const pBar = document.getElementById(`pBar${prefixo}`);
+    document.getElementById(`pWrap${prefixo}`).style.display = 'block';
+    pBar.style.width = '30%';
+    pBar.style.backgroundColor = '#4f46e5';
+
+    statusEl.textContent = "Lendo arquivo excel...";
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array', cellDates: true, raw: false});
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1, defval: ""});
+            
+            let headerRowIndex = -1;
+            let pacoteDadosSupabase = [];
+
+            if (alvoMemoria === 'smart') {
+                let cIdx = -1, dIdx = -1, sIdx = -1;
+                
+                for (let i = 0; i < Math.min(rows.length, 30); i++) {
+                    if (rows[i] && rows[i].length > 0) {
+                        let rTxt = rows[i].map(el => normalizarTexto(el));
+                        cIdx = rTxt.findIndex(txt => txt === 'CNPJ' || txt.includes('CNPJ') || txt.includes('DOCUMENTO') || txt.includes('CPF'));
+                        dIdx = rTxt.findIndex(txt => txt.includes('DATA') || txt.includes('ATIVACAO'));
+                        sIdx = rTxt.findIndex(txt => txt.includes('STATUS') || txt.includes('BASE') || txt.includes('FRESH'));
+                        if (cIdx !== -1) { headerRowIndex = i; break; }
+                    }
+                }
+                
+                if (cIdx === -1) {
+                    // Fallback se não encontrar nomes explícitos: assume colunas 0, 1 e 2 caso tenham dados
+                    headerRowIndex = rows.findIndex(r => r && r.length >= 2 && String(r[0]).replace(/\D/g,'').length >= 11);
+                    if (headerRowIndex !== -1) {
+                        cIdx = 0; dIdx = 1; sIdx = 2;
+                    } else {
+                        throw new Error('Não encontramos a coluna de CNPJ na planilha Smart.');
+                    }
+                }
+                
+                statusEl.textContent = "Extraindo dados do Smart...";
+                pBar.style.width = '60%';
+
+                for (let i = headerRowIndex + 1; i < rows.length; i++) {
+                    const r = rows[i]; 
+                    if (!r || r[cIdx] === undefined || r[cIdx] === null || String(r[cIdx]).trim() === "") continue;
+                    
+                    let cLimpo = normalizarChaveCnpj(r[cIdx]); 
+                    if (!cLimpo || cLimpo.trim() === "") continue;
+                    
+                    let dVal = dIdx !== -1 ? r[dIdx] : '';
+                    let dStr = "Não Informada";
+
+                    if (dVal instanceof Date && !isNaN(dVal.getTime())) {
+                        dStr = dVal.toLocaleDateString('pt-BR');
+                    } else if (typeof dVal === 'number' && dVal > 0) {
+                        let dateObj = XLSX.SSF.parse_date_code(dVal);
+                        if (dateObj) {
+                            dStr = `${String(dateObj.d).padStart(2,'0')}/${String(dateObj.m).padStart(2,'0')}/${dateObj.y}`;
+                        }
+                    } else if (String(dVal).trim() !== "" && String(dVal).toLowerCase() !== "vazio") {
+                        dStr = String(dVal).trim();
+                    }
+                    
+                    let sStr = "vazio";
+                    if (sIdx !== -1 && r[sIdx] !== undefined && r[sIdx] !== null) {
+                        let valorBruto = String(r[sIdx]).toLowerCase().trim();
+                        if (valorBruto.includes("base")) sStr = "base";
+                        else if (valorBruto.includes("fresh")) sStr = "fresh";
+                    }
+                    
+                    pacoteDadosSupabase.push({
+                        cnpj: cLimpo,
+                        data_ativacao: dStr,
+                        status: sStr.toUpperCase()
+                    });
+                }
+
+                if (pacoteDadosSupabase.length > 0) {
+                    const { error } = await supabaseClient
+                        .from('base_smart')
+                        .upsert(pacoteDadosSupabase, { onConflict: 'cnpj', ignoreDuplicates: false });
+                    if (error) throw error;
+                }
+
+            } else {
+                let docIdx = -1, perfIdx = -1;
+                
+                // Varre as primeiras 40 linhas procurando palavras chave estruturadas
+                for (let i = 0; i < Math.min(rows.length, 40); i++) {
+                    if (rows[i] && rows[i].length > 0) {
+                        let rTxt = rows[i].map(el => normalizarTexto(el));
+                        docIdx = rTxt.findIndex(txt => txt.includes('DOCUMENTA') || txt.includes('CNPJ') || txt.includes('CPF') || txt.includes('DOCUMENTO') || txt === 'CLIENTE');
+                        perfIdx = rTxt.findIndex(txt => txt.includes('PERFIL') || txt.includes('COBRANCA') || txt.includes('COBRANÇA') || txt.includes('FORMA') || txt.includes('STATUS'));
+                        
+                        if (docIdx !== -1 && perfIdx !== -1) { headerRowIndex = i; break; }
+                    }
+                }
+                
+                // SUPER FALLBACK POSITION: Se não achar nomes de cabeçalhos, descobre a primeira linha com um CNPJ/CPF válido
+                if (docIdx === -1 || perfIdx === -1) {
+                    for (let i = 0; i < rows.length; i++) {
+                        if (rows[i] && rows[i].length >= 2) {
+                            // Encontra alguma coluna com número longo limpando caracteres
+                            let col0_limpa = String(rows[i][0]).replace(/\D/g, '');
+                            let col1_limpa = String(rows[i][1]).replace(/\D/g, '');
+                            
+                            if (col0_limpa.length >= 11 && col0_limpa.length <= 15) {
+                                docIdx = 0; perfIdx = 1; headerRowIndex = i - 1; break;
+                            } else if (col1_limpa.length >= 11 && col1_limpa.length <= 15) {
+                                docIdx = 1; perfIdx = 0; headerRowIndex = i - 1; break;
+                            }
+                        }
+                    }
+                }
+
+                // Último recurso caso a planilha seja bizarra
+                if (docIdx === -1 || perfIdx === -1) {
+                    docIdx = 0;
+                    perfIdx = 1;
+                    headerRowIndex = -1; // Lê a partir da primeira linha
+                }
+                
+                statusEl.textContent = "Sincronizando faturamento de contas...";
+                pBar.style.width = '60%';
+
+                for (let i = headerRowIndex + 1; i < rows.length; i++) {
+                    const r = rows[i]; 
+                    if (!r || r[docIdx] === undefined || r[docIdx] === null || String(r[docIdx]).trim() === "") continue;
+                    
+                    let cLimpo = normalizarChaveCnpj(r[docIdx]); 
+                    if (!cLimpo || cLimpo.trim() === "" || cLimpo.length < 5) continue; // Descarta cabeçalhos residuais literais
+
+                    let perfilTexto = r[perfIdx] !== undefined && r[perfIdx] !== null ? String(r[perfIdx]).trim() : 'vazio';
+
+                    pacoteDadosSupabase.push({
+                        documentacaocliente: cLimpo,
+                        perfil_cobranca: perfilTexto || 'vazio'
+                    });
+                }
+
+                if (pacoteDadosSupabase.length > 0) {
+                    // Apaga registros anteriores do cliente antes de inserir novos (evita duplicatas entre importações)
+                    const docsUnicos = [...new Set(pacoteDadosSupabase.map(r => r.documentacaocliente))];
+                    for (let i = 0; i < docsUnicos.length; i += 250) {
+                        const lote = docsUnicos.slice(i, i + 250);
+                        await supabaseClient.from('base_contas').delete().in('documentacaocliente', lote);
+                    }
+                    // Insere todos os perfis (inclusive múltiplos por cliente)
+                    const tamanhoLote = 250;
+                    for (let i = 0; i < pacoteDadosSupabase.length; i += tamanhoLote) {
+                        let loteAtual = pacoteDadosSupabase.slice(i, i + tamanhoLote);
+                        const { error } = await supabaseClient
+                            .from('base_contas')
+                            .insert(loteAtual);
+                        if (error) console.error("Falha no lote de upload: ", error);
+                    }
+                }
+            }
+
+            pBar.style.width = '100%';
+            statusEl.textContent = `✅ ${pacoteDadosSupabase.length.toLocaleString('pt-BR')} registros sincronizados!`;
+            
+            await carregarDadosDoBancoSupabase();
+            setTimeout(() => { document.getElementById(`pWrap${prefixo}`).style.display = 'none'; }, 2000);
+
+        } catch(err) { 
+            console.error(err);
+            statusEl.textContent = '❌ Falha estrutural no arquivo.'; 
+            pBar.style.backgroundColor = '#ef4444';
+            alert("Erro durante processamento:\n" + (err.message || JSON.stringify(err)));
+        } finally { 
+            GarantirFocoInput(); 
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function exportarBaseDados(tipo) {
+    if (tipo === 'smart') {
+        const chaves = Object.keys(DB_SMART); if (chaves.length === 0) return;
+        let d = [["CNPJ", "DATA DO SERVIÇO MAIS ANTIGO", "BASE/FRESH"]];
+        chaves.forEach(k => d.push([k, DB_SMART[k].data_ativacao, DB_SMART[k].status === "vazio" ? "Vazio" : DB_SMART[k].status.toUpperCase()]));
+        const ws = XLSX.utils.aoa_to_sheet(d); const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Smart"); XLSX.writeFile(wb, "Base_Smart.xlsx");
+    } else {
+        const chaves = Object.keys(DB_CONTAS); if (chaves.length === 0) return;
+        let d = [["documentacaoCliente", "PERFIL DE COBRANÇA"]];
+        chaves.forEach(k => DB_CONTAS[k].forEach(p => d.push([k, p])));
+        const ws = XLSX.utils.aoa_to_sheet(d); const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Contas"); XLSX.writeFile(wb, "Base_Contas.xlsx");
+    }
+    GarantirFocoInput();
+}
+
+function formatarCnpjTexto(v) {
+    v = v.replace(/\D/g, '');
+    if (v.length === 11) return v.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+    if (v.length < 14) v = v.padStart(14, '0');
+    return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+}
+
+function formatCNPJ(input) {
+    let v = input.value.replace(/\D/g, '');
+    if (v.length > 14) v = v.substring(0, 14);
+    if (v.length > 12) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+    else if (v.length > 8) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})$/, "$1.$2.$3/$4");
+    else if (v.length > 5) v = v.replace(/^(\d{2})(\d{3})(\d{3})$/, "$1.$2.$3");
+    else if (v.length > 2) v = v.replace(/^(\d{2})(\d{3})$/, "$1.$2");
+    input.value = v;
+}
+</script>
+</body>
+</html>
