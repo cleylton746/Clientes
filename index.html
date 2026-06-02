@@ -3,164 +3,438 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Integrado – Smart Vendas & Gestão</title>
+    <title>Smart Dashboard - Ms Connect</title>
+    <link href="foto.pgn 2.png" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; flex-direction: column; }
-        
-        /* Layout Fullscreen Dividido em Duas Colunas */
-        .wrapper { display: flex; flex: 1; min-height: 100vh; width: 100%; }
-        
-        /* Coluna Esquerda: Dashboards e Indicadores */
-        .sidebar-dash { width: 40%; background: #1a1a2e; color: white; padding: 24px; display: flex; flex-direction: column; gap: 20px; border-right: 4px solid #4f46e5; max-height: 100vh; overflow-y: auto; }
-        
-        /* Coluna Direita: Consultas e Operações */
-        .main-content { width: 60%; background: #f8fafc; padding: 30px; max-height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        :root {
+            --bg-main: #0B0F19;
+            --bg-sidebar: #111827;
+            --bg-card: #1F2937;
+            --bg-light-panel: #F9FAFB;
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
+            --accent-blue: #3B82F6;
+            --accent-purple: #6366F1;
+            --accent-green: #10B981;
+            --border-color: #374151;
+        }
 
-        /* Títulos e Tipografia */
-        .side-title { font-size: 18px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 5px; color: #e2e8f0; }
-        .section-header { font-size: 13px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
 
-        /* Grid de Indicadores de Memória */
-        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-        .stat-card { background: rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 14px 10px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
-        .stat-num { font-size: 20px; font-weight: 700; color: #ffffff; }
-        .stat-label { font-size: 11px; color: #94a3b8; margin-top: 2px; text-transform: uppercase; }
+        body {
+            background-color: var(--bg-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-        /* DASHBOARDS STATUS BOXES */
-        .status-box { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px; }
-        .status-box.smart-theme { background: rgba(79, 70, 229, 0.15); border-color: #4f46e5; }
-        .status-box.contas-theme { background: rgba(16, 185, 129, 0.1); border-color: #10b981; }
-        
-        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
-        .sub-stat { padding: 8px; border-radius: 8px; text-align: center; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-        
-        /* Cores Temáticas Smart */
-        .sub-stat.base-bg { background: #1e3a8a; color: #3b82f6; border: 1px solid #2563eb; }
-        .sub-stat.fresh-bg { background: #064e3b; color: #10b981; border: 1px solid #059669; }
-        
-        /* Cores Temáticas Contas */
-        .sub-stat.perfis-bg { background: #312e81; color: #818cf8; border: 1px solid #4f46e5; }
-        .sub-stat.mes-bg { background: #14532d; color: #34d399; border: 1px solid #059669; }
-        
-        .sub-stat span { display: block; font-size: 18px; font-weight: bold; color: white; margin-top: 2px; }
-        
-        /* Barras de Proporção Visual */
-        .ratio-wrapper { background: rgba(255,255,255,0.15); height: 8px; border-radius: 4px; margin-top: 10px; overflow: hidden; display: flex; }
-        .ratio-bar-base { background: #3b82f6; width: 0%; transition: width 0.4s; }
-        .ratio-bar-fresh { background: #10b981; width: 0%; transition: width 0.4s; }
-        .ratio-bar-perfis { background: #6366f1; width: 0%; transition: width 0.4s; }
-        .ratio-bar-mes { background: #10b981; width: 0%; transition: width 0.4s; }
+        .wrapper {
+            display: flex;
+            flex: 1;
+            width: 100%;
+            height: 100vh;
+        }
 
-        /* Filas de Pendências no Painel Lateral */
-        .pending-container { display: flex; flex-direction: column; gap: 12px; flex: 1; }
-        .dashboard-pending { border-radius: 12px; padding: 14px; display: flex; flex-direction: column; max-height: 180px; }
-        .dashboard-pending.smart-p { background: rgba(59, 130, 246, 0.1); border: 1px solid #2563eb; }
-        .dashboard-pending.contas-p { background: rgba(245, 158, 11, 0.1); border: 1px solid #d97706; }
-        .dash-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; }
-        .smart-p .dash-title { color: #60a5fa; }
-        .contas-p .dash-title { color: #fbbf24; }
-        
-        .queue-box { background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 6px; overflow-y: auto; flex: 1; }
-        .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #cbd5e1; }
+        /* --- COLUNA ESQUERDA (DARK SIDEBAR) --- */
+        .sidebar {
+            width: 38%;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .logo-text {
+            color: var(--text-main);
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span {
+            color: var(--text-muted);
+            font-weight: 400;
+            font-size: 11px;
+            display: block;
+            letter-spacing: 0px;
+            margin-top: 2px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .metric-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 12px;
+            text-align: center;
+        }
+
+        .metric-label {
+            color: var(--text-muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-value {
+            color: var(--text-main);
+            font-size: 22px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .status-section {
+            background-color: rgba(31, 41, 55, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .status-title {
+            color: var(--text-main);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .status-subcard {
+            flex: 1;
+            background: #1A2232;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid var(--accent-blue);
+        }
+
+        .status-subcard.fresh { border-left-color: var(--accent-green); }
+        .status-subcard.ativos { border-left-color: var(--accent-purple); }
+
+        .status-subcard p { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+        .status-subcard h4 { font-size: 18px; color: var(--text-main); margin-top: 2px; font-weight: 700; }
+
+        .ratio-wrapper {
+            background-color: #111827;
+            height: 6px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 12px;
+            display: flex;
+        }
+        .ratio-bar-base { background: var(--accent-blue); width: 0%; transition: width 0.4s; }
+        .ratio-bar-fresh { background: var(--accent-green); width: 0%; transition: width 0.4s; }
+        .ratio-bar-perfis { background: var(--accent-purple); width: 0%; transition: width 0.4s; }
+        .ratio-bar-mes { background: var(--accent-green); width: 0%; transition: width 0.4s; }
+
+        .pending-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .dashboard-pending {
+            background: rgba(31, 41, 55, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            max-height: 160px;
+        }
+        .dashboard-pending.smart-p { border-left: 4px solid var(--accent-blue); }
+        .dashboard-pending.contas-p { border-left: 4px solid #D97706; }
+
+        .dash-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .smart-p .dash-title { color: #60A5FA; }
+        .contas-p .dash-title { color: #FBBF24; }
+
+        .queue-box { background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 4px; overflow-y: auto; flex: 1; }
+        .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #CBD5E1; }
         .queue-item:last-child { border-bottom: none; }
-        .btn-copy-item { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; color: white; }
-        .btn-copy-item:hover { background: rgba(255,255,255,0.2); }
+        
+        .btn-copy-item { 
+            background: rgba(255,255,255,0.08); 
+            border: 1px solid rgba(255,255,255,0.15); 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 11px; 
+            color: white; 
+            font-weight: 500;
+        }
+        .btn-copy-item:hover { background: rgba(255,255,255,0.15); }
 
-        /* Componentes de Busca */
-        .search-container { background: white; padding: 20px; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        .input-group { display: flex; gap: 10px; margin-top: 8px; }
-        .filter-select { padding: 12px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 14px; font-weight: 600; color: #334155; background: white; outline: none; cursor: pointer; min-width: 160px; }
-        input[type=text] { flex: 1; padding: 12px 16px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 15px; outline: none; }
-        input[type=text]:focus, .filter-select:focus { border-color: #4f46e5; }
-        .btn-primary { background: #4f46e5; color: white; border: none; border-radius: 10px; padding: 12px 24px; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-        .btn-primary:hover { background: #4338ca; }
+        /* --- COLUNA DIREITA (LIGHT MAIN PANEL) --- */
+        .main-panel {
+            width: 62%;
+            background-color: var(--bg-light-panel);
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
 
-        /* Caixa de Resultado Detalhado */
-        .result-box { display: none; background: white; padding: 20px; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); animation: fadeIn 0.3s ease-in-out; }
+        .panel-block {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid #E5E7EB;
+        }
+
+        .panel-block-title {
+            font-size: 13px;
+            color: #4B5563;
+            font-weight: 700;
+            margin-bottom: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-container { display: flex; gap: 10px; }
+        
+        .filter-select {
+            padding: 12px;
+            border-radius: 10px;
+            border: 1.5px solid #CBD5E1;
+            background-color: white;
+            color: #334155;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            min-width: 150px;
+        }
+
+        .search-input-wrapper { position: relative; flex-grow: 1; }
+        .search-input-wrapper i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #9CA3AF; }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 12px 12px 42px;
+            border-radius: 10px;
+            border: 1.5px solid #CBD5E1;
+            outline: none;
+            font-size: 15px;
+        }
+        .search-input:focus, .filter-select:focus {
+            border-color: var(--accent-purple);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+            white-space: nowrap;
+        }
+        .btn-primary:hover { opacity: 0.95; }
+
+        .result-box { 
+            display: none; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 14px; 
+            border: 1px solid #E5E7EB; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            animation: fadeIn 0.3s ease-in-out;
+        }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-        .cnpj-display { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 14px; border-bottom: 2px solid #f1f5f9; padding-bottom: 6px; }
-        .res-section { border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1.5px solid #e2e8f0; background: #f8fafc; }
-        .res-section.smart-border { border-color: #c7d2fe; background: #f5f7ff; }
-        .res-section.conta-border { border-color: #a7f3d0; background: #f0fdf4; }
         
-        /* Badges de Status */
-        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-bottom: 10px; }
-        .badge.base { background: #dbeafe; color: #1e40af; }
-        .badge.fresh { background: #d1fae5; color: #065f46; }
-        .badge.sucesso { background: #d1fae5; color: #065f46; }
-        .badge.alerta { background: #fef3c7; color: #92400e; }
-        .badge.notfound { background: #fee2e2; color: #991b1b; }
-        
-        .info-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px dashed rgba(0,0,0,0.05); }
-        .info-value { font-weight: 600; color: #1e293b; }
-        .info-value.highlight { color: #10b981; font-weight: 700; background: #e6fcf5; padding: 2px 6px; border-radius: 4px; border: 1px solid #a7f3d0; }
-        .info-value.alert-style { color: #d97706; font-weight: 700; background: #fffbeb; padding: 2px 6px; border-radius: 4px; border: 1px solid #fde68a; }
+        .cnpj-display { font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 14px; border-bottom: 2px solid #F1F5F9; padding-bottom: 6px; }
+        .res-section { border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1.5px solid #E5E7EB; background: #F8FAFC; }
+        .res-section.smart-border { border-color: #C7D2FE; background: #F5F7FF; }
+        .res-section.conta-border { border-color: #A7F3D0; background: #F0FDF4; }
 
-        /* Subgrupo de Perfis Internos */
-        .subgrupo-perfis { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-top: 8px; margin-bottom: 10px; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-bottom: 10px; }
+        .badge.base { background: #DBEAFE; color: #1E40AF; }
+        .badge.fresh { background: #D1FAE5; color: #065F46; }
+        .badge.sucesso { background: #D1FAE5; color: #065F46; }
+        .badge.alerta { background: #FEF3C7; color: #92400E; }
+        .badge.notfound { background: #FEE2E2; color: #991B1B; }
+
+        .info-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px dashed rgba(0,0,0,0.05); }
+        .info-value { font-weight: 600; color: #1E293B; }
+        .info-value.highlight { color: #10B981; font-weight: 700; background: #E6FCF5; padding: 2px 6px; border-radius: 4px; border: 1px solid #A7F3D0; }
+        .info-value.alert-style { color: #D97706; font-weight: 700; background: #FFFBEB; padding: 2px 6px; border-radius: 4px; border: 1px solid #FDE68A; }
+
+        .subgrupo-perfis { background: white; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px; margin-top: 8px; margin-bottom: 10px; }
         .subgrupo-titulo { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
 
-        /* Histórico */
-        .history-box { background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; }
-        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .btn-clear-history { background: none; border: none; color: #ef4444; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: underline; }
-        .history-list { max-height: 200px; overflow-y: auto; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
-        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; font-size: 14px; border-bottom: 1px solid #edf2f7; }
-        .hist-meta { font-size: 11px; color: #94a3b8; font-family: monospace; margin-right: 6px; }
-        
-        /* Tags no Histórico */
+        .history-list { max-height: 160px; overflow-y: auto; background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 8px; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; font-size: 14px; border-bottom: 1px solid #EDF2F7; }
+        .history-item:last-child { border-bottom: none; }
+        .hist-meta { font-size: 11px; color: #94A3B8; font-family: monospace; margin-right: 6px; }
         .hist-identificadores { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
         .hist-badge { padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-        .hist-badge.found { background: #d1fae5; color: #065f46; }
-        .hist-badge.miss { background: #fee2e2; color: #991b1b; }
-        .hist-badge.ident-smart { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
-        .hist-badge.ident-contas { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+        .hist-badge.found { background: #D1FAE5; color: #065F46; }
+        .hist-badge.miss { background: #FEE2E2; color: #991B1B; }
+        .hist-badge.ident-smart { background: #E0F2FE; color: #0369A1; border: 1px solid #BAE6FD; }
+        .hist-badge.ident-contas { background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
 
-        /* Upload de Arquivos Planilhas */
-        .upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-        .upload-section { background: white; border: 1.5px dashed #cbd5e1; border-radius: 14px; padding: 16px; text-align: center; position: relative; }
-        .upload-section.contas { border-color: #a7f3d0; background: #fafdfb; }
-        .upload-title { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-        .upload-desc { font-size: 11px; color: #64748b; margin-bottom: 10px; }
-        .btn-action-import { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; pointer-events: none; }
+        .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .upload-box {
+            border: 2px dashed #CBD5E1;
+            border-radius: 12px;
+            padding: 24px 16px;
+            text-align: center;
+            background: #F9FAFB;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+        .upload-box:hover { border-color: var(--accent-purple); background: rgba(99,102,241,0.01); }
+        .upload-box.contas-box { border-color: #A7F3D0; background: #FAFFF9; }
+        .upload-box.contas-box:hover { border-color: var(--accent-green); }
+        
+        .upload-box i { font-size: 24px; color: var(--accent-purple); margin-bottom: 8px; }
+        .upload-box.contas-box i { color: var(--accent-green); }
+        .upload-box h5 { color: #111827; font-size: 13px; margin-bottom: 4px; font-weight: 600; }
+        .upload-box p { color: #6B7280; font-size: 11px; margin-bottom: 12px; }
+        
+        .btn-outline {
+            border: 1px solid #CBD5E1;
+            background: white;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #374151;
+            pointer-events: none;
+        }
         .file-input-hidden { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-        .status-text { font-size: 11px; font-weight: 500; margin-top: 6px; color: #64748b; }
-        .progress-wrap { margin-top: 6px; background: #e2e8f0; border-radius: 99px; height: 4px; display: none; overflow: hidden; display: flex; }
-        .progress-bar { height: 100%; background: #4f46e5; width: 0%; }
+        
+        .status-text { font-size: 11px; font-weight: 500; margin-top: 6px; color: #64748B; }
+        .progress-wrap { margin-top: 6px; background: #E2E8F0; border-radius: 99px; height: 4px; display:none; overflow: hidden; }
+        .progress-bar { height: 100%; background: var(--accent-blue); width: 0%; }
 
-        /* Rodapé */
-        .export-footer { background: white; border-top: 1px solid #e2e8f0; padding: 16px; display: flex; justify-content: space-between; align-items: center; border-radius: 14px; }
+        .export-footer {
+            background: white;
+            border: 1px solid #E5E7EB;
+            padding: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
         .export-group { display: flex; gap: 8px; }
-        .btn-export { background: white; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; }
-        .btn-export:hover { background: #f8fafc; border-color: #94a3b8; }
+        .btn-export {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: white;
+            border: 1.5px solid #CBD5E1;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+        }
+        .btn-export:hover { background: #F8FAFC; border-color: #94A3B8; }
     </style>
 </head>
 <body>
 
 <div class="wrapper">
     
-    <div class="sidebar-dash">
-        <div>
-            <h1 style="font-size: 20px; font-weight: 700;">📊 Smart Dashboard</h1>
-            <p style="font-size: 11px; opacity: 0.6; margin-top: 2px;">Métricas consolidadas (Supabase Integrado)</p>
-        </div>
-
-        <div>
-            <div class="side-title">Registros no Banco de Dados</div>
-            <div class="stats-grid">
-                <div class="stat-card"><div class="stat-num" id="stSmartTotal">Carregando...</div><div class="stat-label">Total Smart</div></div>
-                <div class="stat-card"><div class="stat-num" id="stContaTotal">Carregando...</div><div class="stat-label">Total Linhas Contas</div></div>
+    <div class="sidebar">
+        <div class="logo-container">
+            <div class="logo-icon">
+                <img src="foto.pgn 2.png" alt="Logo Smart Gestão">
+            </div>
+            <div class="logo-text">
+                SMART GESTÃO
+                <span>Métricas consolidadas (Supabase Integrado)</span>
             </div>
         </div>
 
-        <div class="status-box smart-theme">
-            <div class="side-title" style="font-size:13px; border:none; margin:0;">Status da Base Smart</div>
-            <div class="status-grid">
-                <div class="sub-stat base-bg">BASE<span id="lblSmartBase">0</span></div>
-                <div class="sub-stat fresh-bg">FRESH<span id="lblSmartFresh">0</span></div>
+        <div>
+            <div class="side-title" style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight:600; margin-bottom:10px;">Registros no Banco de Dados</div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Total Smart</div>
+                    <div class="metric-value" id="stSmartTotal">Carregando...</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Total Linhas Contas</div>
+                    <div class="metric-value" id="stContaTotal">Carregando...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <div class="status-title"><i class="fa-solid fa-pie-chart" style="color: var(--accent-blue);"></i> Status da Base Smart</div>
+            <div class="status-row">
+                <div class="status-subcard">
+                    <p>BASE</p>
+                    <h4 id="lblSmartBase">0</h4>
+                </div>
+                <div class="status-subcard fresh">
+                    <p>FRESH</p>
+                    <h4 id="lblSmartFresh">0</h4>
+                </div>
             </div>
             <div class="ratio-wrapper">
                 <div class="ratio-bar-base" id="barRatioBase"></div>
@@ -168,11 +442,17 @@
             </div>
         </div>
 
-        <div class="status-box contas-theme">
-            <div class="side-title" style="font-size:13px; border:none; margin:0; color:#34d399;">Status da Base de Contas</div>
-            <div class="status-grid">
-                <div class="sub-stat perfis-bg">COM PERFIL<span id="lblContasPerfis">0</span></div>
-                <div class="sub-stat mes-bg">PERFIS ATIVOS<span id="lblContasAtivos">0</span></div>
+        <div class="status-section">
+            <div class="status-title"><i class="fa-solid fa-layer-group" style="color: var(--accent-green);"></i> Status da Base de Contas</div>
+            <div class="status-row">
+                <div class="status-subcard" style="border-left-color: var(--accent-purple);">
+                    <p>COM PERFIL</p>
+                    <h4 id="lblContasPerfis">0</h4>
+                </div>
+                <div class="status-subcard" style="border-left-color: var(--accent-green);">
+                    <p>PERFIS ATIVOS</p>
+                    <h4 id="lblContasAtivos">0</h4>
+                </div>
             </div>
             <div class="ratio-wrapper">
                 <div class="ratio-bar-perfis" id="barRatioPerfis"></div>
@@ -196,21 +476,24 @@
             </div>
         </div>
         
-        <div style="font-size: 11px; color: #64748b; text-align: center; margin-top: auto;">Smart Gestão v4.0</div>
+        <div style="font-size: 11px; color: #4B5563; text-align: center; margin-top: auto;">Smart Gestão v4.0</div>
     </div>
 
-    <div class="main-content">
+    <div class="main-panel">
         
-        <div class="search-container">
-            <label class="section-header" for="mainCnpjInput">Painel de Consulta Integrada (Supabase)</label>
-            <div class="input-group">
+        <div class="panel-block">
+            <label class="panel-block-title">Painel de Consulta Integrada (Supabase)</label>
+            <div class="search-container">
                 <select class="filter-select" id="searchFilterScope" onchange="executarFiltroInterface()">
-                    <option value="all"> Consultar Tudo</option>
-                    <option value="smart"> Smart CNPJ</option>
-                    <option value="contas"> Perfil Conta</option>
+                    <option value="all">🔍 Consultar Tudo</option>
+                    <option value="smart">📊 Smart CNPJ</option>
+                    <option value="contas">📋 Perfil Conta</option>
                 </select>
-                <input type="text" id="mainCnpjInput" placeholder="Digite o CNPJ do Cliente para pesquisar..." maxlength="18"
-                    oninput="formatCNPJ(this)" onkeydown="if(event.key==='Enter') executarConsultaGeral()" autofocus />
+                <div class="search-input-wrapper">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="mainCnpjInput" class="search-input" placeholder="Digite o CNPJ do Cliente para pesquisar..." maxlength="18"
+                        oninput="formatCNPJ(this)" onkeydown="if(event.key==='Enter') executarConsultaGeral()" autofocus />
+                </div>
                 <button class="btn-primary" onclick="executarConsultaGeral()">Buscar Cliente</button>
             </div>
         </div>
@@ -221,42 +504,44 @@
             <div class="res-section conta-border" id="boxResultContas"></div>
         </div>
 
-        <div class="history-box">
-            <div class="history-header">
-                <span class="section-header">⏱️ Histórico Recente de Consulta </span>
-                <button class="btn-clear-history" onclick="limparHistoricoExterno()">Limpar Tudo</button>
+        <div class="panel-block">
+            <div class="panel-block-title">
+                <span><i class="fa-solid fa-clock-rotate-left"></i> Histórico Recente de Consulta</span>
+                <button class="btn-clear-history" style="background:none; border:none; color:#EF4444; font-size:11px; font-weight:600; cursor:pointer; text-decoration:underline;" onclick="limparHistoricoExterno()">Limpar Tudo</button>
             </div>
             <div class="history-list" id="historyListContainer">
                 <div style="text-align:center; color:#94a3b8; font-size:12px; padding:15px;">Nenhuma consulta registrada.</div>
             </div>
         </div>
 
-        <div class="upload-row">
-            <div class="upload-section">
-                <div class="upload-title">📥 1. Planilha Smart CNPJ</div>
-                <div class="upload-desc">Exige colunas "CNPJ", "DATA" e "STATUS".</div>
-                <button class="btn-action-import">Selecionar Arquivo</button>
+        <div class="upload-grid">
+            <div class="upload-box">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <h5>1. Planilha Smart CNPJ</h5>
+                <p>Apenas status "BASE" ou "FRESH" serão computados.</p>
+                <button class="btn-outline">Selecionar Arquivo</button>
                 <input type="file" class="file-input-hidden" accept=".xlsx,.xls,.csv" onchange="processarUploadArquivo(this, 'smart')" />
                 <div class="progress-wrap" id="pWrapSmart"><div class="progress-bar" id="pBarSmart"></div></div>
                 <div class="status-text" id="statusSmart">Aguardando arquivo para sincronismo...</div>
             </div>
 
-            <div class="upload-section contas">
-                <div class="upload-title" style="color: #065f46;">📥 2. Planilha Perfil Contas</div>
-                <div class="upload-desc">Identifica documento e perfil de cobrança automaticamente.</div>
-                <button class="btn-action-import" style="color: #065f46; border-color: #a7f3d0;">Selecionar Arquivo</button>
+            <div class="upload-box contas-box">
+                <i class="fa-solid fa-file-invoice"></i>
+                <h5>2. Planilha Perfil Contas</h5>
+                <p>Ignora registros em branco ou marcados como "Agendado".</p>
+                <button class="btn-outline" style="color: #065F46; border-color: #A7F3D0;">Selecionar Arquivo</button>
                 <input type="file" class="file-input-hidden" accept=".xlsx,.xls,.csv" onchange="processarUploadArquivo(this, 'contas')" />
                 <div class="progress-wrap" id="pWrapContas"><div class="progress-bar" id="pBarContas"></div></div>
-                <div class="status-text" id="statusContas" style="color: #065f46;">Aguardando arquivo para sincronismo...</div>
+                <div class="status-text" id="statusContas" style="color: #065F46;">Aguardando arquivo para sincronismo...</div>
             </div>
         </div>
 
         <div class="export-footer">
-            <span style="font-size: 12px; color: #64748b;">Extração consolidada de dados:</span>
+            <span style="font-size: 12px; color: #64748B; font-weight: 500;">Extração consolidada de dados:</span>
             <div class="export-group">
-                <button class="btn-export" onclick="exportarBaseDados('smart')">📊 Exportar Smart</button>
-                <button class="btn-export" onclick="exportarBaseDados('contas')">📋 Exportar Contas</button>
-                <button class="btn-export" style="background:#f1f5f9;" onclick="exportarHistoricoExcel()">⏱️ Exportar Histórico</button>
+                <button class="btn-export" onclick="exportarBaseDados('smart')"><i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Exportar Smart</button>
+                <button class="btn-export" onclick="exportarBaseDados('contas')"><i class="fa-solid fa-file-lines" style="color:#3B82F6;"></i> Exportar Contas</button>
+                <button class="btn-export" style="background:#F1F5F9;" onclick="exportarHistoricoExcel()"><i class="fa-solid fa-clock"></i> Histórico</button>
             </div>
         </div>
 
@@ -264,37 +549,21 @@
 </div>
 
 <script>
-// ========================================================
-// CONFIGURAÇÃO E CONEXÃO COM O SEU BANCO SUPABASE
-// --------------------------------------------------------
-// ⚠️ ATENÇÃO: Substitua os valores abaixo pelas suas
-// credenciais reais encontradas em:
-// Supabase → Settings → API
-//
-// SUPABASE_URL  → campo "Project URL"
-//                 Formato: https://xxxxxxxxxxxx.supabase.co
-//
-// SUPABASE_KEY  → campo "anon public"
-//                 Formato: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-// ========================================================
 window.SUPABASE_URL = "https://uuxfdlzsqudbjtlpllaz.supabase.co";
 window.SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1eGZkbHpzcXVkYmp0bHBsbGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NjQ1NDIsImV4cCI6MjA5NTU0MDU0Mn0.3L90UiFUj3VQYo57ZsQ1E5zG5xZsXVKecyi6PfLpZ_E";
 
 let supabaseClient = null;
 
-// Valida formato mínimo das credenciais antes de inicializar
 const urlValida = window.SUPABASE_URL.startsWith("https://") && window.SUPABASE_URL.includes(".supabase.co");
 const keyValida = window.SUPABASE_KEY.startsWith("eyJ");
 
 if (!urlValida || !keyValida) {
-    console.error("❌ Credenciais do Supabase inválidas ou não configuradas. Verifique SUPABASE_URL e SUPABASE_KEY no topo do script.");
-    alert("⚠️ Configuração necessária:\n\nAs credenciais do Supabase não foram preenchidas corretamente.\n\nAbra o arquivo HTML, localize as variáveis SUPABASE_URL e SUPABASE_KEY e substitua pelos valores reais do seu projeto.\n\nAcesse: Supabase → Settings → API");
+    console.error("❌ Credenciais do Supabase inválidas.");
 } else {
     try {
         supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
     } catch(e) {
         console.error("Erro ao inicializar cliente Supabase:", e);
-        alert("Erro: O cliente Supabase não foi carregado corretamente.\n" + e.message);
     }
 }
 
@@ -328,8 +597,8 @@ async function buscarTodosRegistros(tabela) {
 async function carregarDadosDoBancoSupabase() {
     if (!supabaseClient) return;
     try {
-        document.getElementById('stSmartTotal').textContent = 'Carregando...';
-        document.getElementById('stContaTotal').textContent = 'Carregando...';
+        document.getElementById('stSmartTotal').textContent = '...';
+        document.getElementById('stContaTotal').textContent = '...';
 
         const smartData = await buscarTodosRegistros('base_smart');
         DB_SMART = {};
@@ -373,7 +642,7 @@ function normalizarChaveCnpj(val) {
     return limpo.replace(/^0+/, ''); 
 }
 
-function executarFiltroInterface() {
+function ejecutarFiltroInterface() {
     GarantirFocoInput();
     if (document.getElementById('mainCnpjInput').value.trim() !== "") {
         executarConsultaGeral();
@@ -651,9 +920,6 @@ function clicarItemFila(cnpj) {
 
 function normalizarTexto(txt) { return String(txt).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
 
-// ========================================================
-// MÓDULO DE LEITURA COMPLETAMENTE ULTRA-TOLERANTE
-// ========================================================
 function processarUploadArquivo(input, alvoMemoria) {
     if (!supabaseClient) {
         alert("Erro: O cliente Supabase não foi carregado corretamente.");
@@ -694,7 +960,6 @@ function processarUploadArquivo(input, alvoMemoria) {
                 }
                 
                 if (cIdx === -1) {
-                    // Fallback se não encontrar nomes explícitos: assume colunas 0, 1 e 2 caso tenham dados
                     headerRowIndex = rows.findIndex(r => r && r.length >= 2 && String(r[0]).replace(/\D/g,'').length >= 11);
                     if (headerRowIndex !== -1) {
                         cIdx = 0; dIdx = 1; sIdx = 2;
@@ -734,11 +999,14 @@ function processarUploadArquivo(input, alvoMemoria) {
                         else if (valorBruto.includes("fresh")) sStr = "fresh";
                     }
                     
-                    pacoteDadosSupabase.push({
-                        cnpj: cLimpo,
-                        data_ativacao: dStr,
-                        status: sStr.toUpperCase()
-                    });
+                    // MECANISMO DE BLOQUEIO: Só adiciona se o status for explicitamente BASE ou FRESH
+                    if (sStr === "base" || sStr === "fresh") {
+                        pacoteDadosSupabase.push({
+                            cnpj: cLimpo,
+                            data_ativacao: dStr,
+                            status: sStr.toUpperCase()
+                        });
+                    }
                 }
 
                 if (pacoteDadosSupabase.length > 0) {
@@ -751,7 +1019,6 @@ function processarUploadArquivo(input, alvoMemoria) {
             } else {
                 let docIdx = -1, perfIdx = -1;
                 
-                // Varre as primeiras 40 linhas procurando palavras chave estruturadas
                 for (let i = 0; i < Math.min(rows.length, 40); i++) {
                     if (rows[i] && rows[i].length > 0) {
                         let rTxt = rows[i].map(el => normalizarTexto(el));
@@ -762,11 +1029,9 @@ function processarUploadArquivo(input, alvoMemoria) {
                     }
                 }
                 
-                // SUPER FALLBACK POSITION: Se não achar nomes de cabeçalhos, descobre a primeira linha com um CNPJ/CPF válido
                 if (docIdx === -1 || perfIdx === -1) {
                     for (let i = 0; i < rows.length; i++) {
                         if (rows[i] && rows[i].length >= 2) {
-                            // Encontra alguma coluna com número longo limpando caracteres
                             let col0_limpa = String(rows[i][0]).replace(/\D/g, '');
                             let col1_limpa = String(rows[i][1]).replace(/\D/g, '');
                             
@@ -779,11 +1044,10 @@ function processarUploadArquivo(input, alvoMemoria) {
                     }
                 }
 
-                // Último recurso caso a planilha seja bizarra
                 if (docIdx === -1 || perfIdx === -1) {
                     docIdx = 0;
                     perfIdx = 1;
-                    headerRowIndex = -1; // Lê a partir da primeira linha
+                    headerRowIndex = -1;
                 }
                 
                 statusEl.textContent = "Sincronizando faturamento de contas...";
@@ -794,24 +1058,28 @@ function processarUploadArquivo(input, alvoMemoria) {
                     if (!r || r[docIdx] === undefined || r[docIdx] === null || String(r[docIdx]).trim() === "") continue;
                     
                     let cLimpo = normalizarChaveCnpj(r[docIdx]); 
-                    if (!cLimpo || cLimpo.trim() === "" || cLimpo.length < 5) continue; // Descarta cabeçalhos residuais literais
+                    if (!cLimpo || cLimpo.trim() === "" || cLimpo.length < 5) continue;
 
                     let perfilTexto = r[perfIdx] !== undefined && r[perfIdx] !== null ? String(r[perfIdx]).trim() : 'vazio';
+                    let pLimpo = perfilTexto.toLowerCase().trim();
 
-                    pacoteDadosSupabase.push({
-                        documentacaocliente: cLimpo,
-                        perfil_cobranca: perfilTexto || 'vazio'
-                    });
+                    // MECANISMO DE BLOQUEIO: Ignora se for vazio, falso ou apenas "agendado" (não ativo ainda)
+                    let ehInvalidoOuInativo = pLimpo === "" || pLimpo === "vazio" || pLimpo === "false" || pLimpo === "agendado";
+
+                    if (!ehInvalidoOuInativo) {
+                        pacoteDadosSupabase.push({
+                            documentacaocliente: cLimpo,
+                            perfil_cobranca: perfilTexto
+                        });
+                    }
                 }
 
                 if (pacoteDadosSupabase.length > 0) {
-                    // Apaga registros anteriores do cliente antes de inserir novos (evita duplicatas entre importações)
                     const docsUnicos = [...new Set(pacoteDadosSupabase.map(r => r.documentacaocliente))];
                     for (let i = 0; i < docsUnicos.length; i += 250) {
                         const lote = docsUnicos.slice(i, i + 250);
                         await supabaseClient.from('base_contas').delete().in('documentacaocliente', lote);
                     }
-                    // Insere todos os perfis (inclusive múltiplos por cliente)
                     const tamanhoLote = 250;
                     for (let i = 0; i < pacoteDadosSupabase.length; i += tamanhoLote) {
                         let loteAtual = pacoteDadosSupabase.slice(i, i + tamanhoLote);
